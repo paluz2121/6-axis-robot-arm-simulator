@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROBOKIN 6D - 6-Eksenli Robot Kinematiği ve Yörünge Simülatörü</title>
+  
+  <!-- Modern Typography: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for Beautiful Mathematical Expressions -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+
+  <!-- Application Styling -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Core Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Global Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo">6D</div>
+        <div class="brand-title">
+          <span>ROBOKIN 6D</span>
+          <span class="badge-edu">Eğitim Simülatörü</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="preset-selector-wrapper">
+          <label for="select-preset">Örnek Senaryo:</label>
+          <select id="select-preset" class="preset-dropdown">
+            <option value="pick-place">Standart Taşıma (Pick & Place)</option>
+            <option value="linear-weld">Doğrusal Kaynak Yolu (Linear Seam)</option>
+            <option value="wrist-singularity">Bilek Tekilliği Örneği (θ5 ≈ 0°)</option>
+            <option value="shoulder-singularity">Omuz Tekilliği Örneği (r ≈ 0)</option>
+            <option value="workspace-boundary">Çalışma Alanı Sınırı (Dirsek)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-copy-report" class="btn btn-secondary btn-sm" title="Tüm hesaplamaları ve formülleri panoya kopyalar">
+          📋 Hesaplama Raporunu Kopyala
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="app-main">
+      
+      <!-- ================= LEFT PANEL: Controls & Trajectory Planner ================= -->
+      <aside class="left-panel">
+        
+        <!-- Waypoint A (Start) Card -->
+        <section class="glass-card">
+          <div class="card-title-bar">
+            <span class="card-title cyan">
+              <span class="joint-badge j5">A</span> Başlangıç Konumu (Nokta A)
+            </span>
+            <button id="btn-goto-a" class="btn btn-micro">A'ya Git</button>
+          </div>
+
+          <div class="coord-grid">
+            <div class="input-group">
+              <label>X (mm)</label>
+              <input type="number" id="input-ax" class="coord-input" value="450" step="10">
+            </div>
+            <div class="input-group">
+              <label>Y (mm)</label>
+              <input type="number" id="input-ay" class="coord-input" value="-250" step="10">
+            </div>
+            <div class="input-group">
+              <label>Z (mm)</label>
+              <input type="number" id="input-az" class="coord-input" value="220" step="10">
+            </div>
+          </div>
+
+          <div class="coord-grid">
+            <div class="input-group">
+              <label>Roll (°)</label>
+              <input type="number" id="input-aroll" class="coord-input" value="0" step="5">
+            </div>
+            <div class="input-group">
+              <label>Pitch (°)</label>
+              <input type="number" id="input-apitch" class="coord-input" value="90" step="5">
+            </div>
+            <div class="input-group">
+              <label>Yaw (°)</label>
+              <input type="number" id="input-ayaw" class="coord-input" value="0" step="5">
+            </div>
+          </div>
+
+          <button id="btn-set-current-as-a" class="btn btn-secondary btn-sm btn-full" style="margin-top: 4px;">
+            📍 Mevcut Robot Konumunu A Yap
+          </button>
+        </section>
+
+        <!-- Waypoint B (Target) Card -->
+        <section class="glass-card">
+          <div class="card-title-bar">
+            <span class="card-title emerald">
+              <span class="joint-badge j4">B</span> Hedef Konumu (Nokta B)
+            </span>
+            <button id="btn-goto-b" class="btn btn-micro">B'ye Git</button>
+          </div>
+
+          <div class="coord-grid">
+            <div class="input-group">
+              <label>X (mm)</label>
+              <input type="number" id="input-bx" class="coord-input" value="420" step="10">
+            </div>
+            <div class="input-group">
+              <label>Y (mm)</label>
+              <input type="number" id="input-by" class="coord-input" value="300" step="10">
+            </div>
+            <div class="input-group">
+              <label>Z (mm)</label>
+              <input type="number" id="input-bz" class="coord-input" value="380" step="10">
+            </div>
+          </div>
+
+          <div class="coord-grid">
+            <div class="input-group">
+              <label>Roll (°)</label>
+              <input type="number" id="input-broll" class="coord-input" value="0" step="5">
+            </div>
+            <div class="input-group">
+              <label>Pitch (°)</label>
+              <input type="number" id="input-bpitch" class="coord-input" value="60" step="5">
+            </div>
+            <div class="input-group">
+              <label>Yaw (°)</label>
+              <input type="number" id="input-byaw" class="coord-input" value="45" step="5">
+            </div>
+          </div>
+
+          <button id="btn-set-current-as-b" class="btn btn-secondary btn-sm btn-full" style="margin-top: 4px;">
+            🎯 Mevcut Robot Konumunu B Yap
+          </button>
+        </section>
+
+        <!-- Trajectory Planning Settings -->
+        <section class="glass-card">
+          <div class="card-title-bar">
+            <span class="card-title amber">⚙️ Yörünge Planlama Parametreleri</span>
+          </div>
+
+          <div class="input-group" style="margin-bottom: 8px;">
+            <label>İnterpolasyon Modu</label>
+            <select id="select-trajectory-mode" class="preset-dropdown" style="background: var(--bg-input); padding: 6px; border: 1px solid var(--border-subtle); border-radius: 4px; width: 100%;">
+              <option value="joint-quintic">Eklem Uzayı: 5. Derece Polinom (Önerilen / Sarsıntısız)</option>
+              <option value="joint-cubic">Eklem Uzayı: 3. Derece Polinom (Cubic Spline)</option>
+              <option value="joint-trapezoidal">Eklem Uzayı: Yamuk Hız Profili (LSPB)</option>
+              <option value="cartesian-linear">Kartezyen Uzayı: Doğrusal Çizgi (LIN + SLERP)</option>
+            </select>
+          </div>
+
+          <div class="coord-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px;">
+            <div class="input-group">
+              <label>Hareket Süresi T (s)</label>
+              <input type="number" id="input-duration" value="3.0" min="0.5" max="15.0" step="0.5">
+            </div>
+            <div class="input-group">
+              <label>Simülasyon Hızı</label>
+              <select id="select-speed" class="preset-dropdown" style="background: var(--bg-input); padding: 5px; border: 1px solid var(--border-subtle); border-radius: 4px;">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="1.0" selected>1.0x (Normal)</option>
+                <option value="1.5">1.5x</option>
+                <option value="2.0">2.0x</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="btn-recalculate" class="btn btn-primary btn-full">
+            ⚡ Yörüngeyi Yeniden Hesapla
+          </button>
+        </section>
+
+        <!-- Manual Jogging (Forward Kinematics Sliders) -->
+        <section class="glass-card">
+          <div class="card-title-bar">
+            <span class="card-title">🕹️ Eklem Açıları (İleri Kinematik)</span>
+          </div>
+
+          <div class="joint-slider-row">
+            <span class="joint-label">θ1</span>
+            <input type="range" id="slider-q1" class="joint-slider" min="-180" max="180" step="1" value="0">
+            <span id="val-q1" class="joint-val-text">0.0°</span>
+          </div>
+          <div class="joint-slider-row">
+            <span class="joint-label">θ2</span>
+            <input type="range" id="slider-q2" class="joint-slider" min="-120" max="120" step="1" value="0">
+            <span id="val-q2" class="joint-val-text">0.0°</span>
+          </div>
+          <div class="joint-slider-row">
+            <span class="joint-label">θ3</span>
+            <input type="range" id="slider-q3" class="joint-slider" min="-150" max="150" step="1" value="0">
+            <span id="val-q3" class="joint-val-text">0.0°</span>
+          </div>
+          <div class="joint-slider-row">
+            <span class="joint-label">θ4</span>
+            <input type="range" id="slider-q4" class="joint-slider" min="-180" max="180" step="1" value="0">
+            <span id="val-q4" class="joint-val-text">0.0°</span>
+          </div>
+          <div class="joint-slider-row">
+            <span class="joint-label">θ5</span>
+            <input type="range" id="slider-q5" class="joint-slider" min="-120" max="120" step="1" value="0">
+            <span id="val-q5" class="joint-val-text">0.0°</span>
+          </div>
+          <div class="joint-slider-row">
+            <span class="joint-label">θ6</span>
+            <input type="range" id="slider-q6" class="joint-slider" min="-360" max="360" step="1" value="0">
+            <span id="val-q6" class="joint-val-text">0.0°</span>
+          </div>
+        </section>
+
+      </aside>
+
+      <!-- ================= CENTER PANEL: 3D Viewport & Simulation ================= -->
+      <section class="center-panel">
+        
+        <!-- Top HUD overlay -->
+        <div class="viewport-hud-top">
+          <div class="hud-pill">
+            <div class="hud-stat-item">
+              <span class="hud-stat-label">TCP:</span>
+              <span class="hud-stat-val">X:<span id="hud-tcp-x">0</span> Y:<span id="hud-tcp-y">0</span> Z:<span id="hud-tcp-z">0</span> mm</span>
+            </div>
+            <div class="hud-stat-item">
+              <span class="hud-stat-label">Hız:</span>
+              <span class="hud-stat-val"><span id="hud-speed-val">0.0</span> mm/s</span>
+            </div>
+            <div class="hud-stat-item">
+              <span class="hud-stat-label">Manipülatiflik w:</span>
+              <span class="hud-stat-val text-cyan"><span id="hud-manip-val">0.000</span></span>
+            </div>
+          </div>
+
+          <!-- Camera Quick Views Toolbar -->
+          <div class="cam-controls">
+            <span class="cam-controls-label">📷 Görünüm:</span>
+            <button class="cam-btn active" data-cam="iso" title="İzometrik 3D Genel Bakış">İzometrik</button>
+            <button class="cam-btn" data-cam="top" title="Yukarıdan Üst Görünüm">Üst</button>
+            <button class="cam-btn" data-cam="front" title="Önden Görünüm">Ön</button>
+            <button class="cam-btn" data-cam="side" title="Yandan Görünüm">Yan</button>
+            <button class="cam-btn" data-cam="tcp" title="Takım Uç Noktasını (TCP) Yakınlaştır ve Takip Et">TCP Takip</button>
+          </div>
+        </div>
+
+        <!-- Info / Alert Banners -->
+        <div id="preset-info-banner" class="preset-info-banner"></div>
+        <div id="singularity-alert-banner" class="singularity-banner">
+          ⚠️ <strong>TEKİLLİK BÖLGESİ!</strong> Robot serbestlik derecesi kaybetti veya yüksek hız talebi oluştu.
+        </div>
+
+        <!-- 3D Three.js Container -->
+        <div id="robot-3d-viewport"></div>
+
+        <!-- Viewport Layer Toggles -->
+        <div class="viewport-toggles">
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-frames" checked> Eksenler (F0-F6)
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-ghosts" checked> A/B Hayaletleri
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-trajectory" checked> Yörünge İzi
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-workspace"> Çalışma Zarfı
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-grid" checked> Zemin Izgarası
+          </label>
+        </div>
+
+        <!-- Bottom Simulation Controls Bar -->
+        <div class="simulation-bar">
+          <button id="btn-play-pause" class="sim-btn-play">
+            <span class="icon">▶</span> Oynat
+          </button>
+
+          <button id="btn-reset" class="btn btn-secondary btn-sm" title="Başa Dön">
+            ⏮ Sıfırla
+          </button>
+
+          <button id="btn-step-back" class="btn btn-secondary btn-sm" title="-0.05s Geri">
+            ⏪
+          </button>
+
+          <button id="btn-step-fwd" class="btn btn-secondary btn-sm" title="+0.05s İleri">
+            ⏩
+          </button>
+
+          <div class="timeline-slider-wrapper">
+            <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="1000" value="0">
+            <div class="timeline-info">
+              <span>Zaman: <strong id="timeline-current-time" class="text-cyan">0.00s / 3.00s</strong></span>
+              <span class="text-dim">Kısayol: Boşluk = Başlat/Durdur | Ok Tuşları = Adım İlerle</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ================= RIGHT PANEL: Educational Math Dashboard ================= -->
+      <aside class="right-panel">
+        
+        <!-- Tab Navigation Header -->
+        <div class="edu-tab-header">
+          <button class="edu-tab-btn active" data-tab="dh-fk">DH & Matrisler</button>
+          <button class="edu-tab-btn" data-tab="ik-steps">Ters Kinematik (IK)</button>
+          <button class="edu-tab-btn" data-tab="jacobian">Jakoben & Tekillik</button>
+          <button class="edu-tab-btn" data-tab="charts">Yörünge Grafikleri</button>
+          <button class="edu-tab-btn" data-tab="notes">Ders Notları</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div class="edu-tab-content">
+          
+          <!-- TAB 1: DH Parameters & Transformation Matrices -->
+          <div id="tab-dh-fk" class="edu-tab-panel active">
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title cyan">📐 Denavit-Hartenberg (DH) Parametre Tablosu</span>
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Eklem</th>
+                    <th>θ_i (Açı)</th>
+                    <th>d_i (mm)</th>
+                    <th>a_i (mm)</th>
+                    <th>α_i</th>
+                    <th>Limitler</th>
+                  </tr>
+                </thead>
+                <tbody id="dh-table-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title emerald">🎯 Toplam Uç Nokta Dönüşüm Matrisi (T_0^6)</span>
+              </div>
+              <div id="matrix-t06-katex" class="matrix-card-body"></div>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title">🧩 Tekil Bağlantı Matrisleri (A_1 ... A_6)</span>
+              </div>
+              <div id="matrices-container" class="matrix-grid">
+                <!-- Populated by JS -->
+              </div>
+            </section>
+          </div>
+
+          <!-- TAB 2: Inverse Kinematics Solutions & Steps -->
+          <div id="tab-ik-steps" class="edu-tab-panel">
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title cyan">⚡ 8 Analitik Çözüm Konfigürasyonu (Pieper Teoremi)</span>
+              </div>
+              <p class="text-muted text-xs" style="margin-bottom: 8px;">
+                6-eksenli küresel bilekli robotlarda herhangi bir uzamsal hedef için 8 farklı çözüm dalı (Omuz Ön/Arka, Dirsek Yukarı/Aşağı, Bilek Ters/Normal) mevcuttur:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Çözüm</th>
+                    <th>Konfigürasyon</th>
+                    <th>Durum</th>
+                    <th>Açılar (θ1...θ6)</th>
+                    <th>Seç</th>
+                  </tr>
+                </thead>
+                <tbody id="ik-solutions-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title amber">📝 Adım Adım Matematiksel Çözüm İspatı</span>
+              </div>
+              <div id="educational-steps-container" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Populated by JS -->
+              </div>
+            </section>
+          </div>
+
+          <!-- TAB 3: Jacobian & Singularities -->
+          <div id="tab-jacobian" class="edu-tab-panel">
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title cyan">📊 Geometrik Jakoben Matrisi J(q) [6x6]</span>
+              </div>
+              <p class="text-muted text-xs">
+                Eklem hızları ile Kartezyen uç nokta hızları arasındaki ilişki: <code>[v; ω] = J(q) · dθ/dt</code>
+              </p>
+              <div id="jacobian-matrix-katex" style="overflow-x: auto; padding: 6px 0;"></div>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title emerald">📈 Manipülatiflik ve Determinant</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Jakoben Determinantı det(J):</span>
+                <strong id="jac-det-val" class="font-mono text-cyan">0.00000</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Yoshikawa İndeksi w = √(det(J·J^T)):</span>
+                <strong id="jac-manip-val" class="font-mono text-emerald">0.00000</strong>
+              </div>
+              <div class="progress-container">
+                <div id="manip-progress-bar" class="progress-bar bg-success" style="width: 75%;"></div>
+              </div>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title amber">⚠️ Tekillik Teşhisi (Singularity Diagnostics)</span>
+              </div>
+              <div id="sing-badge-wrist" class="diag-badge diag-ok">✓ Bilek Normal</div>
+              <div id="sing-badge-shoulder" class="diag-badge diag-ok">✓ Omuz Normal</div>
+              <div id="sing-badge-elbow" class="diag-badge diag-ok">✓ Dirsek Normal</div>
+              <p class="text-dim text-xs" style="margin-top: 8px;">
+                *Tekillik anında determinat 0 olur; robot belirli bir yönde hareket kabiliyetini yitirir ve sonsuz eklem hızı gerekir.
+              </p>
+            </section>
+          </div>
+
+          <!-- TAB 4: Trajectory Charts -->
+          <div id="tab-charts" class="edu-tab-panel">
+            <div class="chart-box">
+              <canvas id="chart-positions"></canvas>
+            </div>
+            <div class="chart-box">
+              <canvas id="chart-velocities"></canvas>
+            </div>
+            <div class="chart-box">
+              <canvas id="chart-accelerations"></canvas>
+            </div>
+            <div class="chart-box">
+              <canvas id="chart-tcp"></canvas>
+            </div>
+          </div>
+
+          <!-- TAB 5: Educational Lecture Notes & Guide -->
+          <div id="tab-notes" class="edu-tab-panel">
+            <section class="glass-card">
+              <h3 style="color: var(--accent-cyan); margin-bottom: 6px;">🎓 Robotik Kinematiği Ders Notları</h3>
+              <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">
+                Bu simülatör, üniversite seviyesindeki robotik ve otomasyon derslerinde Denavit-Hartenberg (DH) parametreleri, ileri ve ters kinematik, Jakoben analizi ve yörünge planlamasını somutlaştırmak için tasarlanmıştır.
+              </p>
+
+              <h4 style="color: var(--accent-emerald); font-size: 12px; margin: 8px 0 4px 0;">1. Denavit-Hartenberg (DH) Kuralları:</h4>
+              <ul style="padding-left: 18px; color: var(--text-muted); font-size: 11px; display: flex; flex-direction: column; gap: 4px;">
+                <li><strong>Z_(i-1) ekseni:</strong> (i). eklemin dönme veya ötelenme eksenidir.</li>
+                <li><strong>X_i ekseni:</strong> Z_(i-1) ve Z_i eksenlerinin ortak dikmesidir.</li>
+                <li><strong>θ_i (Eklem Açısı):</strong> X_(i-1) ile X_i arasındaki açı (Z_(i-1) etrafında).</li>
+                <li><strong>d_i (Bağlantı Ötelemesi):</strong> X_(i-1) ile X_i arasındaki mesafe (Z_(i-1) boyunca).</li>
+                <li><strong>a_i (Bağlantı Uzunluğu):</strong> Z_(i-1) ile Z_i arasındaki mesafe (X_i boyunca).</li>
+                <li><strong>α_i (Burulma Açısı):</strong> Z_(i-1) ile Z_i arasındaki açı (X_i etrafında).</li>
+              </ul>
+
+              <h4 style="color: var(--accent-amber); font-size: 12px; margin: 12px 0 4px 0;">2. Yörünge Planlama: Eklem Uzayı vs Kartezyen:</h4>
+              <table class="data-table" style="margin-top: 6px;">
+                <thead>
+                  <tr>
+                    <th>Özellik</th>
+                    <th>Eklem Uzayı (PTP)</th>
+                    <th>Kartezyen Uzayı (LIN)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Yol Şekli</strong></td>
+                    <td>Kavisli (Yay çizer)</td>
+                    <td>Doğrusal (Lazer gibi düz)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Hesaplama Yükü</strong></td>
+                    <td>Düşük (Tek seferde IK)</td>
+                    <td>Yüksek (Her adımda IK)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Tekillik Riski</strong></td>
+                    <td>Düşük (Sarsıntısız)</td>
+                    <td>Yüksek (Bilek patlaması)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Kullanım Alanı</strong></td>
+                    <td>Boşta taşıma (Pick & Place)</td>
+                    <td>Kaynak, Kesim, Yapıştırma</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h4 style="color: var(--accent-cyan); font-size: 12px; margin: 12px 0 4px 0;">3. 5. Derece Polinom (Quintic Spline):</h4>
+              <p style="font-size: 11px; color: var(--text-muted);">
+                Başlangıç ve bitiş hızlarının yanı sıra <strong>ivmelerin de sıfır</strong> olmasını garanti eder. Böylece motorlar darbe (jerk) hissetmez ve robot mekanik ömrü uzar.
+              </p>
+            </section>
+          </div>
+
+        </div>
+
+      </aside>
+
+    </main>
+
+  </div>
+
+  <!-- Application Logic Scripts -->
+  <script src="js/robot-kinematics.js"></script>
+  <script src="js/robot-3d.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/math-explainer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
