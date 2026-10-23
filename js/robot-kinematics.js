@@ -25,6 +25,39 @@ class RobotKinematics {
 
     // Current joint state in radians
     this.q = [0, 0, 0, 0, 0, 0];
+
+    // Multi-DOF Architecture (Supports 3-DOF, 4-DOF, 5-DOF, 6-DOF)
+    this.currentDOF = 6;
+
+    // Structural & Dynamic Physical Parameters (Mass, Inertia, Cross-section Geometry)
+    this.material = {
+      name: "Alüminyum 6061-T6 (Havacılık/Robotik Standardı)",
+      yieldStressMPa: 276.0, // Akma Mukavemeti (MPa)
+      densityKgM3: 2700.0,   // Yoğunluk (kg/m3)
+      elasticModulusGPa: 68.9
+    };
+
+    // Link dynamic properties: mass (kg), CoM distance along link (m), outer diameter D (mm), wall thickness t (mm)
+    this.linkDynamics = [
+      { id: 1, name: "Taban / Kök (Base Turret)", mass: 18.0, rCoM: 0.175, D_outer: 160.0, t_wall: 12.0, Izz: 0.085 },
+      { id: 2, name: "Omuz (Shoulder / Upper Arm)", mass: 14.5, rCoM: 0.200, D_outer: 120.0, t_wall: 10.0, Izz: 0.195 },
+      { id: 3, name: "Dirsek / Ön Kol (Forearm)", mass: 9.0,  rCoM: 0.190, D_outer: 95.0,  t_wall: 7.0,  Izz: 0.108 },
+      { id: 4, name: "Bilek 1 (Wrist Roll)", mass: 4.2,  rCoM: 0.080, D_outer: 75.0,  t_wall: 5.0,  Izz: 0.015 },
+      { id: 5, name: "Bilek 2 (Wrist Pitch)", mass: 2.8,  rCoM: 0.050, D_outer: 60.0,  t_wall: 4.0,  Izz: 0.008 },
+      { id: 6, name: "Bilek 3 / Flanş (Tool Flange)", mass: 1.6,  rCoM: 0.040, D_outer: 50.0,  t_wall: 3.5,  Izz: 0.003 }
+    ];
+  }
+
+  /**
+   * Set Active Degrees of Freedom (3, 4, 5, or 6)
+   */
+  setDOF(dof) {
+    this.currentDOF = Math.max(3, Math.min(6, parseInt(dof, 10)));
+    // Lock inactive joints to 0
+    for (let i = this.currentDOF; i < 6; i++) {
+      this.q[i] = 0.0;
+    }
+    return this.currentDOF;
   }
 
   /**
@@ -101,7 +134,8 @@ class RobotKinematics {
 
     for (let i = 0; i < 6; i++) {
       const p = this.dh[i];
-      const thetaTotal = q[i] + (p.thetaOffset || 0);
+      const qi = (q && q[i] !== undefined) ? q[i] : (this.q[i] || 0.0);
+      const thetaTotal = qi + (p.thetaOffset || 0);
       const A_i = RobotKinematics.dhMatrix(thetaTotal, p.d, p.a, p.alpha);
       individual.push(A_i);
       T_current = RobotKinematics.matMul4(T_current, A_i);
@@ -553,12 +587,25 @@ class RobotKinematics {
    * - manipulability: Yoshikawa index w = sqrt(det(J*J^T))
    * - singularities: { wrist: Boolean, shoulder: Boolean, elbow: Boolean, isSingular: Boolean }
    */
-  computeJacobian(q = this.q) {
+  /**
+   * Compute Geometric Jacobian Matrix (Adapted for 3, 4, 5, or 6 DOF)
+   * J = [J_1 ... J_n]
+   * 
+   * Returns:
+   * - J: Active n x n matrix for the selected DOF
+   * - fullJ: Complete 6x6 spatial Jacobian
+   * - det: determinant of active matrix
+   * - manipulability: Yoshikawa index w
+   * - dof: Active DOF count
+   * - singularities: diagnostic checks
+   */
+  computeJacobian(q = this.q, dof = this.currentDOF) {
+    const n = dof || this.currentDOF || 6;
     const fk = this.computeFK(q);
     const T = fk.cumulative;
     const pe = [T[6][0][3], T[6][1][3], T[6][2][3]]; // Tool Center Point (TCP)
 
-    const J = [
+    const fullJ = [
       [0, 0, 0, 0, 0, 0], // v_x
       [0, 0, 0, 0, 0, 0], // v_y
       [0, 0, 0, 0, 0, 0], // v_z
@@ -568,12 +615,10 @@ class RobotKinematics {
     ];
 
     for (let i = 0; i < 6; i++) {
-      const Ti = T[i]; // T_{i-1} in 0-indexed terms
+      const Ti = T[i];
       const pi_prev = [Ti[0][3], Ti[1][3], Ti[2][3]];
-      const zi_prev = [Ti[0][2], Ti[1][2], Ti[2][2]]; // 3rd column = z-axis
+      const zi_prev = [Ti[0][2], Ti[1][2], Ti[2][2]];
 
-      // r = pe - pi_prev (convert mm to meters for conditioning if needed, or keep in mm)
-      // Note: To have standard physical units, convert positions to meters:
       const r = [
         (pe[0] - pi_prev[0]) / 1000.0,
         (pe[1] - pi_prev[1]) / 1000.0,
@@ -583,29 +628,63 @@ class RobotKinematics {
       const Jv = RobotKinematics.cross(zi_prev, r);
       const Jw = zi_prev;
 
-      J[0][i] = Jv[0];
-      J[1][i] = Jv[1];
-      J[2][i] = Jv[2];
-      J[3][i] = Jw[0];
-      J[4][i] = Jw[1];
-      J[5][i] = Jw[2];
+      fullJ[0][i] = Jv[0];
+      fullJ[1][i] = Jv[1];
+      fullJ[2][i] = Jv[2];
+      fullJ[3][i] = Jw[0];
+      fullJ[4][i] = Jw[1];
+      fullJ[5][i] = Jw[2];
     }
 
-    // Determinant calculation via Gaussian Elimination
-    const det = RobotKinematics.matrixDet6(J);
+    // Extract active Jacobian submatrix based on DOF
+    let J = [];
+    let rowLabels = [];
+
+    if (n === 3) {
+      // 3-DOF: Linear position velocities only [v_x, v_y, v_z] vs [q1, q2, q3]
+      J = [
+        [fullJ[0][0], fullJ[0][1], fullJ[0][2]],
+        [fullJ[1][0], fullJ[1][1], fullJ[1][2]],
+        [fullJ[2][0], fullJ[2][1], fullJ[2][2]]
+      ];
+      rowLabels = ['v_x', 'v_y', 'v_z'];
+    } else if (n === 4) {
+      // 4-DOF SCARA / Palletizer: [v_x, v_y, v_z, w_z] vs [q1...q4]
+      J = [
+        [fullJ[0][0], fullJ[0][1], fullJ[0][2], fullJ[0][3]],
+        [fullJ[1][0], fullJ[1][1], fullJ[1][2], fullJ[1][3]],
+        [fullJ[2][0], fullJ[2][1], fullJ[2][2], fullJ[2][3]],
+        [fullJ[5][0], fullJ[5][1], fullJ[5][2], fullJ[5][3]]
+      ];
+      rowLabels = ['v_x', 'v_y', 'v_z', 'ω_z'];
+    } else if (n === 5) {
+      // 5-DOF: [v_x, v_y, v_z, w_x, w_y] vs [q1...q5]
+      J = [
+        [fullJ[0][0], fullJ[0][1], fullJ[0][2], fullJ[0][3], fullJ[0][4]],
+        [fullJ[1][0], fullJ[1][1], fullJ[1][2], fullJ[1][3], fullJ[1][4]],
+        [fullJ[2][0], fullJ[2][1], fullJ[2][2], fullJ[2][3], fullJ[2][4]],
+        [fullJ[3][0], fullJ[3][1], fullJ[3][2], fullJ[3][3], fullJ[3][4]],
+        [fullJ[4][0], fullJ[4][1], fullJ[4][2], fullJ[4][3], fullJ[4][4]]
+      ];
+      rowLabels = ['v_x', 'v_y', 'v_z', 'ω_x', 'ω_y'];
+    } else {
+      // 6-DOF Full Spatial Jacobian
+      J = fullJ.map(row => [...row]);
+      rowLabels = ['v_x', 'v_y', 'v_z', 'ω_x', 'ω_y', 'ω_z'];
+    }
+
+    // Determinant calculation of active square matrix
+    const det = RobotKinematics.matrixDetN(J);
     const manipulability = Math.abs(det);
 
     // Singularity diagnostic checks:
-    // 1. Wrist singularity: sin(theta5) ~ 0
-    const wristSingular = Math.abs(Math.sin(q[4])) < 0.05;
+    const wristSingular = (n >= 5) && (Math.abs(Math.sin(q[4])) < 0.05);
 
-    // 2. Shoulder singularity: Wrist center lies on base z-axis (r ~ 0)
-    const T4 = T[4];
+    const T4 = T[Math.min(4, n - 1)];
     const pw = [T4[0][3], T4[1][3], T4[2][3]];
     const rw = Math.sqrt(pw[0] * pw[0] + pw[1] * pw[1]);
-    const shoulderSingular = rw < 30.0; // within 30 mm of base axis
+    const shoulderSingular = rw < 30.0;
 
-    // 3. Elbow singularity: Arm fully stretched or folded
     const a2 = this.dh[1].a;
     const d4 = this.dh[3].d;
     const sShoulder = pw[2] - this.dh[0].d;
@@ -613,7 +692,10 @@ class RobotKinematics {
     const elbowSingular = Math.abs(distArm - (a2 + d4)) < 25.0 || Math.abs(distArm - Math.abs(a2 - d4)) < 25.0;
 
     return {
+      dof: n,
       J,
+      fullJ,
+      rowLabels,
       det,
       manipulability,
       singularities: {
@@ -623,6 +705,44 @@ class RobotKinematics {
         isNearSingular: wristSingular || shoulderSingular || elbowSingular || manipulability < 0.005
       }
     };
+  }
+
+  /**
+   * Determinant of NxN Matrix via Gaussian Elimination with partial pivoting
+   */
+  static matrixDetN(M) {
+    const A = M.map(row => [...row]);
+    let det = 1.0;
+    const n = A.length;
+
+    for (let i = 0; i < n; i++) {
+      let pivot = i;
+      for (let j = i + 1; j < n; j++) {
+        if (Math.abs(A[j][i]) > Math.abs(A[pivot][i])) {
+          pivot = j;
+        }
+      }
+
+      if (Math.abs(A[pivot][i]) < 1e-12) return 0.0;
+
+      if (pivot !== i) {
+        const temp = A[i];
+        A[i] = A[pivot];
+        A[pivot] = temp;
+        det = -det;
+      }
+
+      det *= A[i][i];
+
+      for (let j = i + 1; j < n; j++) {
+        const factor = A[j][i] / A[i][i];
+        for (let k = i + 1; k < n; k++) {
+          A[j][k] -= factor * A[i][k];
+        }
+      }
+    }
+
+    return det;
   }
 
   /**
@@ -860,6 +980,375 @@ class RobotKinematics {
       poseB: { ...poseB }
     };
   }
+
+  /**
+   * Multi-DOF Theoretical Comparison & Kinematic Analysis
+   * Compares 3-DOF, 4-DOF, 5-DOF, and 6-DOF architectures
+   */
+  getDOFComparison() {
+    return {
+      3: {
+        dof: 3,
+        name: "3-DOF Artiküle / Düzlemsel Konumlandırma Kolu (RRR)",
+        taskSpace: "Yalnızca 3B Konum (X, Y, Z)",
+        uncontrolled: "Tüm 3B Yönelim Serbesttir (Roll, Pitch, Yaw kontrol edilemez)",
+        jacobianDim: "3x3 [v_x, v_y, v_z]^T = J · [dq1, dq2, dq3]^T",
+        matrixSize: [3, 3],
+        singularityCondition: "det(J_3x3) = 0. Dirsek tam açıldığında veya omuz eksenine yaklaşıldığında.",
+        applications: "Basit transfer kolları, 3B yazıcı ekstrüder taşıyıcıları, kaba istifleme.",
+        differenceFrom6DOF: "Uç noktanın oryantasyonu (takımın duruş açısı) bağımsız olarak ayarlanamaz. Takım parçaya yalnızca kolun geldiği açıyla temas edebilir."
+      },
+      4: {
+        dof: 4,
+        name: "4-DOF SCARA / Dikey Paletleme Robotu (RRRP / RRRR)",
+        taskSpace: "3B Konum (X, Y, Z) + Düşey Dönme (Yaw / Rz)",
+        uncontrolled: "Roll (Rx) ve Pitch (Ry) mekanik olarak zemine dik kilitlidir (0°).",
+        jacobianDim: "4x4 [v_x, v_y, v_z, ω_z]^T = J · [dq1...dq4]^T",
+        matrixSize: [4, 4],
+        singularityCondition: "det(J_4x4) = 0. Yatay iki kolun tam doğrusal hale gelmesi (r = a1 + a2).",
+        applications: "Elektronik PCB dizgi (Pick & place), kutulama, konveyörden alma.",
+        differenceFrom6DOF: "Uç flanş her zaman zemine paraleldir. Eğimli yüzeylerde delme veya yan taraftan kaynak yapamaz; ancak dikey rijitliği ve hızı 6-eksenliye göre çok daha yüksektir."
+      },
+      5: {
+        dof: 5,
+        name: "5-DOF Artiküle Robot (Roll Eksensiz Manipülatör)",
+        taskSpace: "3B Konum (X, Y, Z) + Yönelim Açısı (Pitch, Yaw)",
+        uncontrolled: "Takım ekseni etrafında dönme (Roll / Takım dönüşü) eksiktir.",
+        jacobianDim: "5x5 [v_x, v_y, v_z, ω_x, ω_y]^T = J · [dq1...dq5]^T",
+        matrixSize: [5, 5],
+        singularityCondition: "det(J_5x5) = 0. Bilek eğim açısı sıfır olduğunda veya kol sınırında.",
+        applications: "Gazaltı / Lazer ark kaynağı, sprey boyama, püskürtme, yapıştırıcı sürme (Eksenel simetrik takımlar).",
+        differenceFrom6DOF: "Torç veya püskürtme nozülü silindirik simetriye sahip olduğu için kendi ekseni etrafında dönmesine ihtiyaç yoktur. Maliyet ve ağırlık 6-DOF'a göre %25 daha düşüktür."
+      },
+      6: {
+        dof: 6,
+        name: "6-DOF Tam Uzamsal Endüstriyel Robot Kolu",
+        taskSpace: "Tam Uzamsal Serbestlik: Konum (X, Y, Z) + Tam Yönelim (Roll, Pitch, Yaw)",
+        uncontrolled: "Yok (Tamamen kontrol edilebilir uzamsal 6 serbestlik)",
+        jacobianDim: "6x6 [v; ω]^T = J · [dq1...dq6]^T",
+        matrixSize: [6, 6],
+        singularityCondition: "det(J_6x6) = 0. Bilek tekilliği (θ5 = 0), Omuz tekilliği (r = 0), Dirsek sınırı.",
+        applications: "CNC işleme, montaj, orbital kaynak, karmaşık parça işleme, cerrahi robotik.",
+        differenceFrom6DOF: "Evrensel kinematik yapıya sahiptir. 3B uzayda erişilebilir her noktaya istenen herhangi bir açıyla yaklaşabilir."
+      }
+    };
+  }
+
+  /**
+   * Recursive Newton-Euler (RNE) Dynamic Torque & Force Calculator
+   * Calculates joint torques, link accelerations, inertial forces, and moments
+   * 
+   * @param {Array} q - Joint angles (rad)
+   * @param {Array} qDot - Joint velocities (rad/s)
+   * @param {Array} qDoubleDot - Joint accelerations (rad/s^2)
+   * @param {Number} payloadKg - End-effector payload mass (kg)
+   * @returns {Object} Dynamics results with torques, link forces, moments, and energies
+   */
+  computeNewtonEulerDynamics(q = this.q, qDot = [0,0,0,0,0,0], qDoubleDot = [0,0,0,0,0,0], payloadKg = 3.0) {
+    const n = this.currentDOF || 6;
+    const g0 = [0, 0, 9.81]; // Gravity vector in base frame (m/s^2)
+
+    const fk = this.computeFK(q);
+    const T = fk.cumulative;
+
+    // Link relative rotation matrices R_{i-1}^i and displacement vectors P_i
+    const R_rel = [];
+    const P_vec = [];
+
+    for (let i = 0; i < n; i++) {
+      const Ai = fk.individual[i];
+      // 3x3 rotation of Ai
+      const R_i = [
+        [Ai[0][0], Ai[0][1], Ai[0][2]],
+        [Ai[1][0], Ai[1][1], Ai[1][2]],
+        [Ai[2][0], Ai[2][1], Ai[2][2]]
+      ];
+      // displacement in meters
+      const P_i = [Ai[0][3] / 1000.0, Ai[1][3] / 1000.0, Ai[2][3] / 1000.0];
+
+      R_rel.push(R_i);
+      P_vec.push(P_i);
+    }
+
+    // Forward Recursion: Kinematic variables (velocities and accelerations)
+    const omega = [[0, 0, 0]]; // Base angular velocity
+    const alpha = [[0, 0, 0]]; // Base angular acceleration
+    const a_orig = [[g0[0], g0[1], g0[2]]]; // Base acceleration with gravity offset
+    const a_com = [];
+    const F_inertial = [];
+    const N_inertial = [];
+
+    const z0 = [0, 0, 1]; // Joint rotation axis in local frame
+
+    for (let i = 0; i < n; i++) {
+      const R = R_rel[i];
+      const RT = [
+        [R[0][0], R[1][0], R[2][0]],
+        [R[0][1], R[1][1], R[2][1]],
+        [R[0][2], R[1][2], R[2][2]]
+      ];
+
+      const qd = qDot[i] || 0.0;
+      const qdd = qDoubleDot[i] || 0.0;
+
+      // omega_i = R^T * omega_{i-1} + z0 * qd
+      const w_prev_rot = RobotKinematics.matVecMul3(RT, omega[i]);
+      const w_i = [w_prev_rot[0], w_prev_rot[1], w_prev_rot[2] + qd];
+      omega.push(w_i);
+
+      // alpha_i = R^T * alpha_{i-1} + z0 * qdd + omega_i x (z0 * qd)
+      const a_prev_rot = RobotKinematics.matVecMul3(RT, alpha[i]);
+      const cross_w_z = RobotKinematics.cross(w_i, [0, 0, qd]);
+      const a_i = [
+        a_prev_rot[0] + cross_w_z[0],
+        a_prev_rot[1] + cross_w_z[1],
+        a_prev_rot[2] + qdd + cross_w_z[2]
+      ];
+      alpha.push(a_i);
+
+      // a_origin_i = R^T * a_{origin, i-1} + alpha_i x P_i + omega_i x (omega_i x P_i)
+      const a_orig_rot = RobotKinematics.matVecMul3(RT, a_orig[i]);
+      const P = P_vec[i];
+      const alpha_x_P = RobotKinematics.cross(a_i, P);
+      const w_x_P = RobotKinematics.cross(w_i, P);
+      const w_x_w_x_P = RobotKinematics.cross(w_i, w_x_P);
+
+      const a_orig_i = [
+        a_orig_rot[0] + alpha_x_P[0] + w_x_w_x_P[0],
+        a_orig_rot[1] + alpha_x_P[1] + w_x_w_x_P[1],
+        a_orig_rot[2] + alpha_x_P[2] + w_x_w_x_P[2]
+      ];
+      a_orig.push(a_orig_i);
+
+      // Center of Mass acceleration
+      const dyn = this.linkDynamics[i];
+      let m_i = dyn.mass;
+      if (i === n - 1) m_i += payloadKg; // Add payload to end-effector
+
+      const r_com = [0, 0, dyn.rCoM]; // CoM vector
+      const alpha_x_rc = RobotKinematics.cross(a_i, r_com);
+      const w_x_rc = RobotKinematics.cross(w_i, r_com);
+      const w_x_w_x_rc = RobotKinematics.cross(w_i, w_x_rc);
+
+      const a_com_i = [
+        a_orig_i[0] + alpha_x_rc[0] + w_x_w_x_rc[0],
+        a_orig_i[1] + alpha_x_rc[1] + w_x_w_x_rc[1],
+        a_orig_i[2] + alpha_x_rc[2] + w_x_w_x_rc[2]
+      ];
+      a_com.push(a_com_i);
+
+      // Inertial Forces & Torques: F_i = m_i * a_com_i, N_i = I_i * alpha_i + omega_i x (I_i * omega_i)
+      const F_i = [m_i * a_com_i[0], m_i * a_com_i[1], m_i * a_com_i[2]];
+      const Izz = dyn.Izz;
+      const I_w = [Izz * w_i[0] * 0.5, Izz * w_i[1] * 0.5, Izz * w_i[2]];
+      const w_x_Iw = RobotKinematics.cross(w_i, I_w);
+      const N_i = [
+        Izz * 0.5 * a_i[0] + w_x_Iw[0],
+        Izz * 0.5 * a_i[1] + w_x_Iw[1],
+        Izz * a_i[2] + w_x_Iw[2]
+      ];
+
+      F_inertial.push(F_i);
+      N_inertial.push(N_i);
+    }
+
+    // Backward Recursion: Forces, Moments, and Joint Motor Torques
+    const torques = new Array(n).fill(0);
+    const linkForces = new Array(n).fill(null);
+    const linkMoments = new Array(n).fill(null);
+
+    let f_next = [0, 0, payloadKg * 9.81]; // External payload force at end-effector
+    let n_next = [0, 0, 0];
+
+    for (let i = n - 1; i >= 0; i--) {
+      const R = R_rel[i];
+      const P = P_vec[i];
+      const F_i = F_inertial[i];
+      const N_i = N_inertial[i];
+      const r_com = [0, 0, this.linkDynamics[i].rCoM];
+
+      // f_i = R_{i+1} * f_{i+1} + F_i
+      const f_next_rot = (i === n - 1) ? f_next : RobotKinematics.matVecMul3(R_rel[i + 1], f_next);
+      const f_i = [
+        f_next_rot[0] + F_i[0],
+        f_next_rot[1] + F_i[1],
+        f_next_rot[2] + F_i[2]
+      ];
+
+      // n_i = N_i + R_{i+1} * n_{i+1} + P_i x (R_{i+1} * f_{i+1}) + (P_i + r_com) x F_i
+      const n_next_rot = (i === n - 1) ? n_next : RobotKinematics.matVecMul3(R_rel[i + 1], n_next);
+      const P_x_fnext = RobotKinematics.cross(P, f_next_rot);
+      const P_plus_rc = [P[0] + r_com[0], P[1] + r_com[1], P[2] + r_com[2]];
+      const Prc_x_F = RobotKinematics.cross(P_plus_rc, F_i);
+
+      const n_i = [
+        N_i[0] + n_next_rot[0] + P_x_fnext[0] + Prc_x_F[0],
+        N_i[1] + n_next_rot[1] + P_x_fnext[1] + Prc_x_F[1],
+        N_i[2] + n_next_rot[2] + P_x_fnext[2] + Prc_x_F[2]
+      ];
+
+      // Motor torque tau_i is the projection along the z-axis (joint axis)
+      torques[i] = n_i[2];
+      linkForces[i] = f_i;
+      linkMoments[i] = n_i;
+
+      f_next = f_i;
+      n_next = n_i;
+    }
+
+    // Structural Stress & Strength Calculation
+    const structuralAnalysis = this.computeStructuralStrength(torques, linkForces, linkMoments);
+
+    return {
+      dof: n,
+      torques,
+      linkForces,
+      linkMoments,
+      accelerations: { linear: a_com, angular: alpha.slice(1) },
+      structuralAnalysis
+    };
+  }
+
+  /**
+   * Structural Strength & Stress Sizing Analysis (Mukavemet Analizi)
+   * Calculates bending moment, shear, Von Mises stress, and Factor of Safety (FOS)
+   */
+  computeStructuralStrength(torques, linkForces = null, linkMoments = null) {
+    if (torques && typeof torques === 'object' && !Array.isArray(torques)) {
+      if (torques.structuralAnalysis) return torques.structuralAnalysis;
+      linkMoments = torques.linkMoments;
+      linkForces = torques.linkForces;
+      torques = torques.torques;
+    }
+    const n = (torques && torques.length) || 0;
+    const results = [];
+    const sigmaYield = this.material.yieldStressMPa; // e.g. 276 MPa for Al 6061-T6
+
+    for (let i = 0; i < n; i++) {
+      const dyn = this.linkDynamics[i];
+      const M = linkMoments[i] || [0, 0, 0];
+      const F = linkForces[i] || [0, 0, 0];
+
+      // Bending moment magnitude (orthogonal to axis): M_b = sqrt(Mx^2 + My^2)
+      const Mb = Math.sqrt(M[0] * M[0] + M[1] * M[1]); // in Nm
+      const Torsion = Math.abs(torques[i]); // in Nm
+      const ShearForce = Math.sqrt(F[0] * F[0] + F[1] * F[1]); // in N
+      const AxialForce = Math.abs(F[2]); // in N
+
+      // Hollow circular cross-section geometry: D_outer, t_wall in meters
+      const D = dyn.D_outer / 1000.0;
+      const t = dyn.t_wall / 1000.0;
+      const d = Math.max(0.001, D - 2 * t);
+
+      // Cross-sectional Area: A = pi * (D^2 - d^2) / 4
+      const Area = (Math.PI * (D * D - d * d)) / 4.0; // m^2
+
+      // Section Modulus for bending: W = pi * (D^4 - d^4) / (32 * D)
+      const W_bending = (Math.PI * (Math.pow(D, 4) - Math.pow(d, 4))) / (32.0 * D); // m^3
+      // Polar section modulus for torsion: W_p = 2 * W_bending
+      const W_polar = 2.0 * W_bending;
+
+      // Normal Bending Stress: sigma_b = M_b / W_bending (in Pa -> convert to MPa)
+      const sigma_bending = (Mb / W_bending) / 1e6;
+      // Axial Stress: sigma_axial = F_axial / Area
+      const sigma_axial = (AxialForce / Area) / 1e6;
+      const sigma_normal_total = sigma_bending + sigma_axial;
+
+      // Torsional Shear Stress: tau_torsion = T / W_polar
+      const tau_torsion = (Torsion / W_polar) / 1e6;
+      // Direct Shear Stress: tau_direct = 2 * V / Area (approx for thin tube)
+      const tau_shear = (2.0 * ShearForce / Area) / 1e6;
+      const tau_shear_total = tau_torsion + tau_shear;
+
+      // Von Mises Equivalent Stress: sigma_vm = sqrt(sigma^2 + 3 * tau^2)
+      const sigma_von_mises = Math.sqrt(
+        Math.pow(sigma_normal_total, 2) + 3.0 * Math.pow(tau_shear_total, 2)
+      );
+
+      // Factor of Safety (Emniyet Katsayısı): FOS = sigma_yield / sigma_von_mises
+      const fos = sigma_von_mises > 0.05 ? (sigmaYield / sigma_von_mises) : 999.0;
+
+      // Required minimum wall thickness for target FOS >= 2.5
+      // W_req = (sqrt(Mb^2 + 0.75 * T^2)) / (sigma_yield / 2.5)
+      const sigma_allowable = (sigmaYield * 1e6) / 2.5;
+      const equivalentMoment = Math.sqrt(Mb * Mb + 0.75 * Torsion * Torsion);
+      const W_required = equivalentMoment / sigma_allowable;
+      // Estimate minimum thickness: W ~ (pi/8) * D^2 * t -> t_min = W / ((pi/8) * D^2)
+      const t_min_calc = Math.max(1.5, (W_required / ((Math.PI / 8.0) * D * D)) * 1000.0);
+
+      results.push({
+        linkId: i + 1,
+        name: dyn.name,
+        massKg: dyn.mass,
+        torqueNm: Torsion.toFixed(1),
+        bendingMomentNm: Mb.toFixed(1),
+        shearForceN: ShearForce.toFixed(1),
+        outerDiameterMm: dyn.D_outer.toFixed(1),
+        wallThicknessMm: dyn.t_wall.toFixed(1),
+        bendingStressMPa: sigma_bending.toFixed(2),
+        vonMisesStressMPa: sigma_von_mises.toFixed(2),
+        factorOfSafety: Math.min(999, fos).toFixed(1),
+        isSafe: fos >= 2.0,
+        recommendedMinThicknessMm: t_min_calc.toFixed(1),
+        materialName: this.material.name,
+        materialYieldMPa: sigmaYield
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Euler-Lagrange Dynamic Formulation Model
+   * M(q)*qdd + C(q, qd)*qd + G(q) = tau
+   */
+  computeEulerLagrange(q = this.q, qDot = [0,0,0,0,0,0], qDoubleDot = [0,0,0,0,0,0]) {
+    const n = this.currentDOF || 6;
+
+    // 1. Gravity Vector G(q): Torques when qDot = 0, qDoubleDot = 0
+    const dynStatic = this.computeNewtonEulerDynamics(q, new Array(n).fill(0), new Array(n).fill(0), 3.0);
+    const G_vector = [...dynStatic.torques];
+
+    // 2. Full Torque tau
+    const dynFull = this.computeNewtonEulerDynamics(q, qDot, qDoubleDot, 3.0);
+    const tau_vector = [...dynFull.torques];
+
+    // 3. Kinetic Energy K = 0.5 * sum(m_i * v_i^2 + I_i * w_i^2)
+    let kineticEnergy = 0.0;
+    for (let i = 0; i < n; i++) {
+      const qd = qDot[i] || 0.0;
+      kineticEnergy += 0.5 * this.linkDynamics[i].Izz * qd * qd;
+    }
+
+    // 4. Potential Energy P = sum(m_i * g * h_i)
+    let potentialEnergy = 0.0;
+    const fk = this.computeFK(q);
+    for (let i = 0; i < n; i++) {
+      const z_m = fk.cumulative[i + 1][2][3] / 1000.0;
+      potentialEnergy += this.linkDynamics[i].mass * 9.81 * z_m;
+    }
+
+    const lagrangian = kineticEnergy - potentialEnergy;
+
+    return {
+      G_vector: G_vector.map(g => g.toFixed(2)),
+      tau_vector: tau_vector.map(t => t.toFixed(2)),
+      kineticEnergyJ: kineticEnergy.toFixed(2),
+      potentialEnergyJ: potentialEnergy.toFixed(2),
+      lagrangianJ: lagrangian.toFixed(2)
+    };
+  }
+
+  /**
+   * 3x3 Matrix-Vector Multiplication
+   */
+  static matVecMul3(M, v) {
+    return [
+      M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2],
+      M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2],
+      M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2]
+    ];
+  }
 }
 
 // Export for browser global or module environment
@@ -869,3 +1358,4 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = RobotKinematics;
 }
+

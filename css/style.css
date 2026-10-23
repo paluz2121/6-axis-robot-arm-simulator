@@ -674,9 +674,21 @@ body {
 .edu-tab-header {
   display: flex;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(13, 19, 34, 0.9);
-  padding: 4px 8px 0 8px;
-  gap: 4px;
+  background: rgba(13, 19, 34, 0.95);
+  padding: 6px 8px 0 8px;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+}
+.edu-tab-header::-webkit-scrollbar {
+  height: 4px;
+}
+.edu-tab-header::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
 }
 
 .edu-tab-btn {
@@ -690,14 +702,18 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   border-bottom: 2px solid transparent;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .edu-tab-btn:hover {
   color: var(--text-main);
+  background: rgba(255, 255, 255, 0.03);
 }
 .edu-tab-btn.active {
   color: var(--accent-cyan);
   border-bottom-color: var(--accent-cyan);
-  background: rgba(56, 189, 248, 0.08);
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.15);
 }
 
 .edu-tab-content {
@@ -987,3 +1003,27 @@ body {
 .text-muted { color: var(--text-muted); }
 .text-xs { font-size: 10.5px; }
 .font-mono { font-family: var(--font-mono); }
+
+/* Home / Reset Button */
+.btn-home {
+  background: rgba(14, 165, 233, 0.2);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(14, 165, 233, 0.4);
+}
+.btn-home:hover {
+  background: rgba(14, 165, 233, 0.35);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+/* Multi-DOF Active Card */
+.dof-card-active {
+  background: rgba(14, 165, 233, 0.12) !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+}
+
+.badge-secondary {
+  background: rgba(51, 65, 85, 0.6);
+  color: var(--text-muted);
+  border: 1px solid rgba(100, 116, 139, 0.4);
+}
+

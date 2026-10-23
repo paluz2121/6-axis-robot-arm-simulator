@@ -227,11 +227,16 @@ class MathExplainer {
    * Update Jacobian & Singularity Dashboard
    */
   updateJacobianAndSingularities(jacobianResult) {
-    const { J, det, manipulability, singularities } = jacobianResult;
+    const { J, det, manipulability, singularities, dof, rowLabels } = jacobianResult;
+    const n = dof || 6;
 
-    // Render Jacobian Matrix
-    const jLatex = `J(q) = ${this.formatJacobianLatex(J, 2)}`;
+    // Render Active Jacobian Matrix with dimension label
+    const dimText = `${n} \\times ${n}`;
+    const jLatex = `J_{${n} \\times ${n}}(q) = ${this.formatJacobianLatex(J, 2)}`;
     this.renderLatex('jacobian-matrix-katex', jLatex, true);
+
+    const titleEl = document.getElementById('jacobian-title-dim');
+    if (titleEl) titleEl.textContent = `[${dimText} Matris - ${n} Serbestlik Derecesi]`;
 
     // Determinant & Manipulability values
     const detEl = document.getElementById('jac-det-val');
@@ -378,6 +383,114 @@ Sonuç: Hareket sarsıntısız (jerk-free), başlangıç ve bitiş ivmeleri 0 ol
 `;
 
     return report;
+  }
+
+  /**
+   * Update Dynamics & Structural Strength Analysis (Newton-Euler, Euler-Lagrange, Mukavemet)
+   */
+  updateDynamicsAndStrength(dynResult, eulerLagrangeResult) {
+    if (!dynResult) return;
+
+    // 1. Update Torques Table
+    const torqueBody = document.getElementById('dynamics-torque-body');
+    if (torqueBody) {
+      const torques = dynResult.torques;
+      let html = '';
+      for (let i = 0; i < torques.length; i++) {
+        const tau = torques[i];
+        const absTau = Math.abs(tau);
+        const percent = Math.min(100, (absTau / 250.0) * 100);
+        const barColor = absTau > 180 ? 'bg-danger' : absTau > 90 ? 'bg-warning' : 'bg-success';
+
+        html += `
+          <tr>
+            <td><span class="joint-badge j${i+1}">${i+1}</span></td>
+            <td><strong>Eklem ${i+1} Torku (τ${i+1})</strong></td>
+            <td class="font-mono ${tau >= 0 ? 'text-cyan' : 'text-amber'}">${tau >= 0 ? '+' : ''}${tau.toFixed(1)} Nm</td>
+            <td>
+              <div class="progress-container" style="width: 110px; margin: 0;">
+                <div class="progress-bar ${barColor}" style="width: ${percent}%;"></div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+      torqueBody.innerHTML = html;
+    }
+
+    // 2. Render Euler-Lagrange Formulas
+    if (eulerLagrangeResult) {
+      const elLatex = `M(q)\\ddot{q} + C(q, \\dot{q})\\dot{q} + G(q) = \\tau`;
+      this.renderLatex('lagrange-eq-katex', elLatex, true);
+
+      const kineticEl = document.getElementById('val-kinetic-energy');
+      const potentialEl = document.getElementById('val-potential-energy');
+      const lagrangianEl = document.getElementById('val-lagrangian');
+
+      if (kineticEl) kineticEl.textContent = `${eulerLagrangeResult.kineticEnergyJ} J`;
+      if (potentialEl) potentialEl.textContent = `${eulerLagrangeResult.potentialEnergyJ} J`;
+      if (lagrangianEl) lagrangianEl.textContent = `${eulerLagrangeResult.lagrangianJ} J`;
+    }
+
+    // 3. Update Structural Stress & Strength (Mukavemet) Table
+    const stressBody = document.getElementById('structural-stress-body');
+    if (stressBody && dynResult.structuralAnalysis) {
+      let html = '';
+      dynResult.structuralAnalysis.forEach(item => {
+        const isSafe = item.isSafe;
+        const statusBadge = isSafe
+          ? `<span class="badge badge-success">✓ Emniyetli (FOS: ${item.factorOfSafety})</span>`
+          : `<span class="badge badge-danger">⚠️ Kritik (FOS: ${item.factorOfSafety})</span>`;
+
+        html += `
+          <tr>
+            <td><strong>${item.name}</strong></td>
+            <td class="font-mono">${item.bendingMomentNm} Nm</td>
+            <td class="font-mono">Ø${item.outerDiameterMm} / t=${item.wallThicknessMm} mm</td>
+            <td class="font-mono text-amber">${item.vonMisesStressMPa} MPa</td>
+            <td>${statusBadge}</td>
+            <td class="font-mono text-cyan">≥ ${item.recommendedMinThicknessMm} mm</td>
+          </tr>
+        `;
+      });
+      stressBody.innerHTML = html;
+    }
+  }
+
+  /**
+   * Update Multi-DOF Comparison Section (3, 4, 5, 6 DOF)
+   */
+  updateDOFComparison(dofComparisonData, activeDOF = 6) {
+    const container = document.getElementById('dof-comparison-container');
+    if (!container) return;
+
+    let html = '';
+    const dofs = [3, 4, 5, 6];
+
+    dofs.forEach(d => {
+      const item = dofComparisonData[d];
+      const isActive = (d === parseInt(activeDOF, 10));
+
+      html += `
+        <div class="glass-card ${isActive ? 'dof-card-active' : ''}" style="margin-bottom: 10px; border-left: 4px solid ${isActive ? 'var(--accent-cyan)' : 'var(--border-subtle)'};">
+          <div class="card-title-bar">
+            <span class="card-title ${isActive ? 'cyan' : ''}">
+              ${isActive ? '★ [AKTİF ROBOT] ' : ''}${item.name}
+            </span>
+            <span class="badge ${isActive ? 'badge-success' : 'badge-secondary'}">${d} Eksen</span>
+          </div>
+          <div style="font-size: 11.5px; display: flex; flex-direction: column; gap: 6px;">
+            <div><strong style="color: var(--text-dim);">Kontrol Edilen Uzay:</strong> <span class="text-cyan">${item.taskSpace}</span></div>
+            <div><strong style="color: var(--text-dim);">Kilitli / Eksik Yönler:</strong> <span class="text-amber">${item.uncontrolled}</span></div>
+            <div><strong style="color: var(--text-dim);">Jakoben Matrisi:</strong> <code>${item.jacobianDim}</code></div>
+            <div><strong style="color: var(--text-dim);">6-DOF'tan Farkı:</strong> ${item.differenceFrom6DOF}</div>
+            <div><strong style="color: var(--text-dim);">Tipik Endüstriyel Görevler:</strong> ${item.applications}</div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
   }
 }
 

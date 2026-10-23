@@ -152,14 +152,51 @@ class Robot3DVisualizer {
   }
 
   /**
-   * Helper to create styled coordinate axes triad (RGB)
+   * Helper to create canvas label billboard sprite
+   */
+  createLabelSprite(text, textColor = '#38bdf8') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 180;
+    canvas.height = 48;
+    const ctx = canvas.getContext('2d');
+
+    // Pill background
+    ctx.fillStyle = 'rgba(13, 19, 34, 0.88)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+    ctx.lineWidth = 3;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(4, 4, 172, 40, 8);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillRect(4, 4, 172, 40);
+      ctx.strokeRect(4, 4, 172, 40);
+    }
+
+    // Text
+    ctx.fillStyle = textColor;
+    ctx.font = 'bold 20px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 90, 24);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(55, 15, 1);
+    return sprite;
+  }
+
+  /**
+   * Helper to create styled coordinate axes triad (RGB) with billboard label
    */
   createAxesHelper(size = 80, labelText = "") {
     const group = new THREE.Group();
 
     // X Axis: Red
     const xGeo = new THREE.CylinderGeometry(2, 2, size, 8);
-    const xMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+    const xMat = new THREE.MeshBasicMaterial({ color: 0xef4444, depthTest: false });
     const xCyl = new THREE.Mesh(xGeo, xMat);
     xCyl.rotation.z = -Math.PI / 2;
     xCyl.position.x = size / 2;
@@ -171,7 +208,7 @@ class Robot3DVisualizer {
     group.add(xCone);
 
     // Y Axis: Green
-    const yMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+    const yMat = new THREE.MeshBasicMaterial({ color: 0x10b981, depthTest: false });
     const yCyl = new THREE.Mesh(xGeo, yMat);
     yCyl.position.y = size / 2;
     group.add(yCyl);
@@ -181,7 +218,7 @@ class Robot3DVisualizer {
     group.add(yCone);
 
     // Z Axis: Blue
-    const zMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+    const zMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, depthTest: false });
     const zCyl = new THREE.Mesh(xGeo, zMat);
     zCyl.rotation.x = Math.PI / 2;
     zCyl.position.z = size / 2;
@@ -195,9 +232,16 @@ class Robot3DVisualizer {
     // Center Origin Sphere
     const originMesh = new THREE.Mesh(
       new THREE.SphereGeometry(3.5, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffffff })
+      new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false })
     );
     group.add(originMesh);
+
+    // Billboard Text Label
+    if (labelText) {
+      const label = this.createLabelSprite(labelText);
+      label.position.set(0, size + 16, 0);
+      group.add(label);
+    }
 
     return group;
   }
@@ -351,66 +395,148 @@ class Robot3DVisualizer {
     elbowMotor.castShadow = !isGhost;
     j3Group.add(elbowMotor);
 
-    // Forearm link extends d4
+    // Forearm link body extends d4 - 110mm to make room for clearly articulated wrist stages
     const forearm = new THREE.Group();
+    const forearmBodyLength = d4 - 110;
     const forearmBeam = new THREE.Mesh(
-      new THREE.CylinderGeometry(55, 65, d4, 20),
+      new THREE.CylinderGeometry(52, 64, forearmBodyLength, 24),
       matLink
     );
-    forearmBeam.position.set(0, d4 / 2, 0);
+    forearmBeam.position.set(0, forearmBodyLength / 2, 0);
     forearmBeam.castShadow = !isGhost;
     forearm.add(forearmBeam);
+
+    // Long accent channels on forearm
+    const conduit1 = new THREE.Mesh(new THREE.BoxGeometry(10, forearmBodyLength * 0.85, 12), matAccent);
+    conduit1.position.set(32, forearmBodyLength / 2, 0);
+    forearm.add(conduit1);
+    const conduit2 = new THREE.Mesh(new THREE.BoxGeometry(10, forearmBodyLength * 0.85, 12), matAccent);
+    conduit2.position.set(-32, forearmBodyLength / 2, 0);
+    forearm.add(conduit2);
 
     j3Group.add(forearm);
     j2Group.add(j3Group);
 
-    // --- Joint 4: Forearm Roll ---
+    // =========================================================================
+    // --- Joint 4: Forearm Roll (Rotates around Y forearm longitudinal axis) ---
+    // =========================================================================
     const j4Group = new THREE.Group();
-    j4Group.position.set(0, d4, 0); // At wrist center
+    j4Group.position.set(0, forearmBodyLength, 0); // Positioned cleanly at top of forearm
 
-    const wristRollHub = new THREE.Mesh(
-      new THREE.CylinderGeometry(55, 55, 60, 20),
+    // Joint 4 Rotary Bearing Collar
+    const j4Collar = new THREE.Mesh(
+      new THREE.CylinderGeometry(56, 56, 36, 24),
       matJoint
     );
-    wristRollHub.castShadow = !isGhost;
-    j4Group.add(wristRollHub);
+    j4Collar.position.set(0, 18, 0);
+    j4Collar.castShadow = !isGhost;
+    j4Group.add(j4Collar);
 
-    // --- Joint 5: Wrist Pitch ---
+    // Circular graduation dial ring (visually emphasizes roll rotation)
+    const j4Dial = new THREE.Mesh(
+      new THREE.TorusGeometry(58, 3.5, 16, 32),
+      matAccent
+    );
+    j4Dial.rotation.x = Math.PI / 2;
+    j4Dial.position.set(0, 20, 0);
+    j4Group.add(j4Dial);
+
+    // Clevis / Yoke fork extending forward 65mm to Joint 5 pivot
+    const j5Offset = 65;
+    const forkLeft = new THREE.Mesh(new THREE.BoxGeometry(14, j5Offset, 28), matJoint);
+    forkLeft.position.set(-30, 18 + j5Offset / 2, 0);
+    forkLeft.castShadow = !isGhost;
+    j4Group.add(forkLeft);
+
+    const forkRight = new THREE.Mesh(new THREE.BoxGeometry(14, j5Offset, 28), matJoint);
+    forkRight.position.set(30, 18 + j5Offset / 2, 0);
+    forkRight.castShadow = !isGhost;
+    j4Group.add(forkRight);
+
+    // =========================================================================
+    // --- Joint 5: Wrist Pitch (Rotates around X transverse pivot axis) ---
+    // =========================================================================
     const j5Group = new THREE.Group();
-    const wristPitchHub = new THREE.Mesh(
-      new THREE.CylinderGeometry(45, 45, 80, 20),
+    j5Group.position.set(0, 18 + j5Offset, 0); // Distinct 65mm forward clearance from Joint 4!
+
+    // Transverse Pitch Pivot Motor Cylinder (along X axis)
+    const pitchPivot = new THREE.Mesh(
+      new THREE.CylinderGeometry(32, 32, 74, 24),
       matJoint
     );
-    wristPitchHub.rotation.x = Math.PI / 2;
-    wristPitchHub.castShadow = !isGhost;
-    j5Group.add(wristPitchHub);
+    pitchPivot.rotation.z = Math.PI / 2;
+    pitchPivot.castShadow = !isGhost;
+    j5Group.add(pitchPivot);
+
+    // Side Pivot Bearing Caps (Anodized accent rings showing pitch angle)
+    const capLeft = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 78, 16), matAccent);
+    capLeft.rotation.z = Math.PI / 2;
+    j5Group.add(capLeft);
+
+    // Forward Neck Link extending 55mm to Joint 6 Tool Flange
+    const j6Offset = 55;
+    const j5Neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(36, 42, j6Offset, 20),
+      matLink
+    );
+    j5Neck.position.set(0, j6Offset / 2, 0);
+    j5Neck.castShadow = !isGhost;
+    j5Group.add(j5Neck);
+
     j4Group.add(j5Group);
 
-    // --- Joint 6: Wrist Roll / Tool Flange ---
+    // =========================================================================
+    // --- Joint 6: Wrist Roll / Tool Flange (Rotates around tool roll axis) ---
+    // =========================================================================
     const j6Group = new THREE.Group();
-    const flange = new THREE.Mesh(
-      new THREE.CylinderGeometry(40, 48, 25, 20),
+    j6Group.position.set(0, j6Offset, 0); // Distinct 55mm forward clearance from Joint 5!
+
+    // Tool Flange Rotary Face Plate (Gold/Amber Industrial Alloy)
+    const flangeDisk = new THREE.Mesh(
+      new THREE.CylinderGeometry(46, 46, 14, 24),
       matTool
     );
-    flange.position.set(0, 12, 0);
-    flange.castShadow = !isGhost;
-    j6Group.add(flange);
+    flangeDisk.position.set(0, 7, 0);
+    flangeDisk.castShadow = !isGhost;
+    j6Group.add(flangeDisk);
 
-    // Tool tip pointer & laser
-    const pointer = new THREE.Mesh(
-      new THREE.ConeGeometry(12, d6 - 25, 16),
+    // 6 Radial Fastener Bolts (visually show tool roll spinning)
+    for (let b = 0; b < 6; b++) {
+      const angle = (b * Math.PI) / 3;
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 16, 8), matJoint);
+      bolt.position.set(32 * Math.cos(angle), 7, 32 * Math.sin(angle));
+      j6Group.add(bolt);
+    }
+
+    // Radial Orientation Marker / Pointer needle on rim
+    const rollPointer = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 18), matAccent);
+    rollPointer.position.set(0, 14, 32);
+    j6Group.add(rollPointer);
+
+    // Tool Chuck & Pointer Body
+    const toolChuck = new THREE.Mesh(
+      new THREE.CylinderGeometry(24, 34, 32, 18),
       matBase
     );
-    pointer.position.set(0, 25 + (d6 - 25) / 2, 0);
-    pointer.castShadow = !isGhost;
-    j6Group.add(pointer);
+    toolChuck.position.set(0, 23, 0);
+    toolChuck.castShadow = !isGhost;
+    j6Group.add(toolChuck);
 
-    // TCP Tip Indicator (Sphere)
+    const pointerLen = Math.max(35, d6 - 45);
+    const pointerCone = new THREE.Mesh(
+      new THREE.ConeGeometry(9, pointerLen, 16),
+      matBase
+    );
+    pointerCone.position.set(0, 39 + pointerLen / 2, 0);
+    pointerCone.castShadow = !isGhost;
+    j6Group.add(pointerCone);
+
+    // Glowing TCP Tip Indicator
     const tcpTip = new THREE.Mesh(
-      new THREE.SphereGeometry(6, 12, 12),
+      new THREE.SphereGeometry(6, 14, 14),
       new THREE.MeshBasicMaterial({ color: isGhost ? ghostColor : 0xef4444 })
     );
-    tcpTip.position.set(0, d6, 0);
+    tcpTip.position.set(0, 39 + pointerLen, 0);
     j6Group.add(tcpTip);
 
     j5Group.add(j6Group);
@@ -433,15 +559,25 @@ class Robot3DVisualizer {
   }
 
   /**
-   * Build coordinate frame visual helpers for all joints (0 to 6)
+   * Build coordinate frame visual helpers for all joints (0 to 6) with distinct labels
    */
   buildCoordinateFrames() {
     this.frameGroup = new THREE.Group();
 
+    const frameNames = [
+      "F0: Taban",
+      "F1: Kök Yaw",
+      "F2: Omuz Pitch",
+      "F3: Dirsek Pitch",
+      "F4: Bilek Roll",
+      "F5: Bilek Pitch",
+      "F6: Flanş / TCP"
+    ];
+
     // 7 Frames: F0 (Base) + F1...F6
     this.jointFrames = [];
     for (let i = 0; i <= 6; i++) {
-      const helper = this.createAxesHelper(i === 6 ? 90 : 65);
+      const helper = this.createAxesHelper(i === 6 ? 85 : 60, frameNames[i]);
       helper.visible = this.showFrames;
       this.jointFrames.push(helper);
       this.frameGroup.add(helper);
@@ -551,39 +687,23 @@ class Robot3DVisualizer {
   }
 
   /**
-   * Update 3D Robot Pose using Forward Kinematics Transformation Matrices
-   * 
-   * Transforms robot links matching DH homogeneous matrices T0...T6
+   * Set Active DOF in 3D Visualizer (3, 4, 5, or 6)
+   */
+  setDOF(dof) {
+    this.currentDOF = dof;
+    if (this.jointFrames) {
+      for (let i = 0; i <= 6; i++) {
+        this.jointFrames[i].visible = this.showFrames && (i <= dof);
+      }
+    }
+  }
+
+  /**
+   * Update 3D Robot Pose and Link Articulation
    */
   updateRobotPose(q, targetModel = this.robotModel) {
     const fk = this.kinematics.computeFK(q);
-    const T = fk.cumulative;
-
-    // Convert 4x4 DH matrices into Three.js Matrix4
-    // DH standard: Z is along joint axis, X is normal.
-    // Three.js world: Y is up, X is right, Z is front.
-    // Note: We can directly place frames and link meshes using Three.js Matrix4 decomposition!
-    if (targetModel === this.robotModel && this.jointFrames) {
-      for (let i = 0; i <= 6; i++) {
-        const Ti = T[i];
-        const m = new THREE.Matrix4();
-        // Set matrix elements (column-major in Three.js)
-        m.set(
-          Ti[0][0], Ti[0][1], Ti[0][2], Ti[0][3],
-          Ti[2][0], Ti[2][1], Ti[2][2], Ti[2][3], // Swapping Y and Z for robotics (Z-up) to Three.js (Y-up)
-          -Ti[1][0], -Ti[1][1], -Ti[1][2], -Ti[1][3],
-          Ti[3][0], Ti[3][1], Ti[3][2], Ti[3][3]
-        );
-
-        // Or direct mapping since robotics convention is Z up:
-        // In our scene: Floor is Y=0, so Base is along Y axis!
-        // Let's map DH coords:
-        // DH X -> Three.js X
-        // DH Y -> Three.js -Z
-        // DH Z -> Three.js Y
-        this.applyDhMatrixToThreeObject(this.jointFrames[i], Ti);
-      }
-    }
+    const n = this.currentDOF || this.kinematics.currentDOF || 6;
 
     // Apply joint angles to robot visual hierarchy
     // Joint 1: Base Yaw around Y
@@ -595,18 +715,49 @@ class Robot3DVisualizer {
     // Joint 3: Elbow Pitch around X
     targetModel.joints[2].rotation.x = q[2];
 
-    // Joint 4: Forearm Roll around Y
-    targetModel.joints[3].rotation.y = q[3];
+    // Joint 4: Forearm Roll around Y (Active if DOF >= 4)
+    targetModel.joints[3].rotation.y = (n >= 4) ? q[3] : 0.0;
 
-    // Joint 5: Wrist Pitch around X
-    targetModel.joints[4].rotation.x = q[4];
+    // Joint 5: Wrist Pitch around X (Active if DOF >= 5)
+    targetModel.joints[4].rotation.x = (n >= 5) ? q[4] : 0.0;
 
-    // Joint 6: Tool Roll around Y
-    targetModel.joints[5].rotation.y = q[5];
+    // Joint 6: Tool Roll around Y (Active if DOF >= 6)
+    targetModel.joints[5].rotation.y = (n >= 6) ? q[5] : 0.0;
+
+    // Position coordinate frames directly at physical joint pivot centers (No overlapping!)
+    if (targetModel === this.robotModel && this.jointFrames) {
+      targetModel.root.updateMatrixWorld(true);
+
+      // Frame 0: Base Origin
+      this.jointFrames[0].position.set(0, 0, 0);
+
+      // Frame 1: Base Yaw Turret
+      targetModel.joints[0].getWorldPosition(this.jointFrames[1].position);
+      targetModel.joints[0].getWorldQuaternion(this.jointFrames[1].quaternion);
+
+      // Frame 2: Shoulder Pitch Pivot
+      targetModel.joints[1].getWorldPosition(this.jointFrames[2].position);
+      targetModel.joints[1].getWorldQuaternion(this.jointFrames[2].quaternion);
+
+      // Frame 3: Elbow Pitch Pivot
+      targetModel.joints[2].getWorldPosition(this.jointFrames[3].position);
+      targetModel.joints[2].getWorldQuaternion(this.jointFrames[3].quaternion);
+
+      // Frame 4: Wrist Forearm Roll Collar
+      targetModel.joints[3].getWorldPosition(this.jointFrames[4].position);
+      targetModel.joints[3].getWorldQuaternion(this.jointFrames[4].quaternion);
+
+      // Frame 5: Wrist Pitch Pivot Pin (separated 65mm forward)
+      targetModel.joints[4].getWorldPosition(this.jointFrames[5].position);
+      targetModel.joints[4].getWorldQuaternion(this.jointFrames[5].quaternion);
+
+      // Frame 6: Tool Mounting Flange Face (separated 55mm forward)
+      targetModel.joints[5].getWorldPosition(this.jointFrames[6].position);
+      targetModel.joints[5].getWorldQuaternion(this.jointFrames[6].quaternion);
+    }
 
     if (targetModel === this.robotModel) {
       // Store current TCP position in Three.js world coordinates
-      // DH (X, Y, Z) -> Three.js (X, Z, -Y)
       this.currentTCPPos.set(fk.tcp.x, fk.tcp.z, -fk.tcp.y);
     }
 

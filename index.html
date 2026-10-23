@@ -37,6 +37,16 @@
 
       <div class="header-center">
         <div class="preset-selector-wrapper">
+          <label for="select-dof">Robot Tipi (DOF):</label>
+          <select id="select-dof" class="preset-dropdown">
+            <option value="6" selected>6-DOF (Tam Endüstriyel Robot)</option>
+            <option value="5">5-DOF (Roll Eksiksiz / Kaynak-Boyama)</option>
+            <option value="4">4-DOF (SCARA / Paletleme)</option>
+            <option value="3">3-DOF (Konumlandırma Kolu)</option>
+          </select>
+        </div>
+
+        <div class="preset-selector-wrapper">
           <label for="select-preset">Örnek Senaryo:</label>
           <select id="select-preset" class="preset-dropdown">
             <option value="pick-place">Standart Taşıma (Pick & Place)</option>
@@ -191,6 +201,9 @@
         <section class="glass-card">
           <div class="card-title-bar">
             <span class="card-title">🕹️ Eklem Açıları (İleri Kinematik)</span>
+            <button id="btn-reset-home" class="btn btn-micro btn-home" title="Bütün açıları 0.0° yaparak robotu sıfırlar">
+              🏠 0° Home
+            </button>
           </div>
 
           <div class="joint-slider-row">
@@ -292,8 +305,12 @@
             <span class="icon">▶</span> Oynat
           </button>
 
-          <button id="btn-reset" class="btn btn-secondary btn-sm" title="Başa Dön">
+          <button id="btn-reset" class="btn btn-secondary btn-sm" title="Zamanı Başa Al">
             ⏮ Sıfırla
+          </button>
+
+          <button id="btn-reset-home-timeline" class="btn btn-secondary btn-sm" title="Tüm Açıları 0° Yaparak Home Pozisyonuna Dön">
+            🏠 0° Home
           </button>
 
           <button id="btn-step-back" class="btn btn-secondary btn-sm" title="-0.05s Geri">
@@ -320,11 +337,13 @@
         
         <!-- Tab Navigation Header -->
         <div class="edu-tab-header">
-          <button class="edu-tab-btn active" data-tab="dh-fk">DH & Matrisler</button>
-          <button class="edu-tab-btn" data-tab="ik-steps">Ters Kinematik (IK)</button>
-          <button class="edu-tab-btn" data-tab="jacobian">Jakoben & Tekillik</button>
-          <button class="edu-tab-btn" data-tab="charts">Yörünge Grafikleri</button>
-          <button class="edu-tab-btn" data-tab="notes">Ders Notları</button>
+          <button class="edu-tab-btn active" data-tab="dh-fk" title="Denavit-Hartenberg Parametreleri ve Homojen Dönüşüm Matrisleri">📐 DH & Matrisler</button>
+          <button class="edu-tab-btn" data-tab="ik-steps" title="Pieper Yaklaşımı ile 8 Analitik Ters Kinematik Çözümü">⚡ Ters Kinematik</button>
+          <button class="edu-tab-btn" data-tab="jacobian" title="Geometrik Jakoben, Manipülatiflik ve Tekillik Teşhisi">📊 Jakoben & Tekillik</button>
+          <button class="edu-tab-btn" data-tab="dynamics" title="Newton-Euler & Euler-Lagrange Dinamiği ve Kesit Mukavemet Analizi">⚙️ Dinamik & Mukavemet</button>
+          <button class="edu-tab-btn" data-tab="dof-compare" title="3-DOF, 4-DOF, 5-DOF ve 6-DOF Robot Mimarisi Karşılaştırması">🎓 DOF Karşılaştırma</button>
+          <button class="edu-tab-btn" data-tab="charts" title="Eklem Konum, Hız ve İvme Yörünge Grafikleri">📈 Grafikler</button>
+          <button class="edu-tab-btn" data-tab="notes" title="Robotik Kinematiği Üniversite Ders Notları">📖 Ders Notları</button>
         </div>
 
         <!-- Tab Contents -->
@@ -520,6 +539,101 @@
                 Başlangıç ve bitiş hızlarının yanı sıra <strong>ivmelerin de sıfır</strong> olmasını garanti eder. Böylece motorlar darbe (jerk) hissetmez ve robot mekanik ömrü uzar.
               </p>
             </section>
+          </div>
+
+          <!-- TAB: Dinamik ve Mukavemet (Newton-Euler & Euler-Lagrange) -->
+          <div id="tab-dynamics" class="edu-tab-panel">
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title cyan">⚡ Dinamik Eklem Motor Torkları (Newton-Euler RNE)</span>
+                <span class="badge badge-success">Yük: 3.0 kg + g=9.81m/s²</span>
+              </div>
+              <p class="text-muted text-xs" style="margin-bottom: 8px;">
+                Özyinelemeli Newton-Euler (RNE) algoritması ile ileri özyinelemede eklem ivmeleri ve eylemsizlik kuvvetleri, geri özyinelemede ise eklem torkları (τ) hesaplanır:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Eklem</th>
+                    <th>Anlık Tork (τ)</th>
+                    <th>Tork Yük Seviyesi</th>
+                  </tr>
+                </thead>
+                <tbody id="dynamics-torque-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title emerald">📐 Euler-Lagrange Dinamik Modeli</span>
+              </div>
+              <div id="lagrange-eq-katex" class="matrix-card-body"></div>
+              <div class="edu-step-values" style="margin-top: 8px;">
+                <div class="val-item">
+                  <span class="val-label">Kinetik Enerji K:</span>
+                  <span id="val-kinetic-energy" class="val-num">0.00 J</span>
+                </div>
+                <div class="val-item">
+                  <span class="val-label">Potansiyel Enerji P:</span>
+                  <span id="val-potential-energy" class="val-num">0.00 J</span>
+                </div>
+                <div class="val-item" style="grid-column: span 2;">
+                  <span class="val-label">Lagrangian L = K - P:</span>
+                  <span id="val-lagrangian" class="val-num">0.00 J</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title amber">🛡️ Robot Bağlantıları Mukavemet ve Kesit Analizi</span>
+              </div>
+              <p class="text-muted text-xs" style="margin-bottom: 8px;">
+                Her bağlantının eğilme momenti ($M_b$), kesit modülü ($W$), Von Mises gerilmesi ($\sigma_{vm}$) ve emniyet katsayısı ($\text{FOS} = \sigma_y / \sigma_{vm}$):
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Bağlantı</th>
+                    <th>Eğilme Momenti</th>
+                    <th>Kesit (D / t)</th>
+                    <th>Von Mises</th>
+                    <th>Emniyet (FOS)</th>
+                    <th>Önerilen Et Kalınlığı</th>
+                  </tr>
+                </thead>
+                <tbody id="structural-stress-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </section>
+
+            <section class="glass-card">
+              <h4 style="color: var(--accent-cyan); font-size: 12px; margin-bottom: 6px;">💡 Mühendislik İlkesi: Neden Taban Kalın, Bilek İnce Olmalıdır?</h4>
+              <p style="font-size: 11.5px; color: var(--text-muted); line-height: 1.6;">
+                <strong>1. Eğilme Momenti Kolu ($M = F \cdot L$):</strong> Robot tabanı ve omuz eklemi, kolun tüm uzuvlarının kütlesini ve taşınan yükü en uzun kaldıraç koluyla taşır. Bu yüzden taban çapı (Ø160mm) ve et kalınlığı en yüksek seçilmelidir.<br>
+                <strong>2. Atalet Momenti Çoğalması ($I = m \cdot r^2$):</strong> Bilekteki her fazladan 100 gram kütle, taban motoruna mesafenin karesiyle ($r^2$) orantılı devasa bir atalet yükü bindirir. Bu nedenle bilek uzuvları (Link 4, 5, 6) ince cidarlı (t=3.5-5mm) ve içi boş hafif alaşımdan üretilir.
+              </p>
+            </section>
+          </div>
+
+          <!-- TAB: Multi-DOF Karşılaştırma (3, 4, 5 vs 6 DOF) -->
+          <div id="tab-dof-compare" class="edu-tab-panel">
+            <section class="glass-card" style="margin-bottom: 12px;">
+              <div class="card-title-bar">
+                <span class="card-title cyan">🎓 Serbestlik Derecesi (DOF) Karşılaştırma Rehberi</span>
+              </div>
+              <p class="text-muted text-xs">
+                Robot kolunun serbestlik derecesi (DOF), kontrol edebileceği bağımsız koordinat ve yönelim sayısını belirler. Aşağıdaki kartlardan her bir robot mimarisinin Jakoben ve kinematik farklarını inceleyebilirsiniz:
+              </p>
+            </section>
+
+            <div id="dof-comparison-container">
+              <!-- Populated by JS -->
+            </div>
           </div>
 
         </div>

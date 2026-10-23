@@ -239,6 +239,79 @@ class RobotEducationalApp {
     this.mathExplainer.updateDHTable(q);
     this.mathExplainer.updateTransformationMatrices(fk);
     this.mathExplainer.updateJacobianAndSingularities(jac);
+
+    // 6. Compute Dynamics (Recursive Newton-Euler) & Structural Strength (Mukavemet)
+    const dyn = this.kinematics.computeNewtonEulerDynamics(q, [0,0,0,0,0,0], [0,0,0,0,0,0], 3.0);
+    const el = this.kinematics.computeEulerLagrange(q, [0,0,0,0,0,0], [0,0,0,0,0,0]);
+    this.mathExplainer.updateDynamicsAndStrength(dyn, el);
+    this.mathExplainer.updateDOFComparison(this.kinematics.getDOFComparison(), this.kinematics.currentDOF);
+  }
+
+  /**
+   * Reset Robot to Home Pose (All joint angles 0.0°)
+   */
+  resetToHomePose() {
+    this.pause();
+    this.currentQ = [0, 0, 0, 0, 0, 0];
+    this.kinematics.q = [0, 0, 0, 0, 0, 0];
+    this.updateRobotState(this.currentQ);
+
+    const fk = this.kinematics.computeFK(this.currentQ);
+    // Set Waypoint A inputs to Home Pose
+    document.getElementById('input-ax').value = fk.tcp.x.toFixed(1);
+    document.getElementById('input-ay').value = fk.tcp.y.toFixed(1);
+    document.getElementById('input-az').value = fk.tcp.z.toFixed(1);
+    document.getElementById('input-aroll').value = fk.tcp.rollDeg.toFixed(1);
+    document.getElementById('input-apitch').value = fk.tcp.pitchDeg.toFixed(1);
+    document.getElementById('input-ayaw').value = fk.tcp.yawDeg.toFixed(1);
+
+    this.recalculateTrajectory();
+
+    const banner = document.getElementById('preset-info-banner');
+    if (banner) {
+      banner.textContent = "🏠 Robot Sıfırlandı: Tüm Eklem Açıları 0.0° (Home Pose)";
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 3000);
+    }
+  }
+
+  /**
+   * Set Active Degrees of Freedom (3, 4, 5, or 6 DOF)
+   */
+  setDOF(dof) {
+    const activeDOF = this.kinematics.setDOF(dof);
+    this.visualizer.setDOF(activeDOF);
+
+    // Adapt joint sliders UI
+    for (let i = 1; i <= 6; i++) {
+      const slider = document.getElementById(`slider-q${i}`);
+      const row = slider ? slider.closest('.joint-slider-row') : null;
+      if (row) {
+        if (i <= activeDOF) {
+          row.style.opacity = '1.0';
+          slider.disabled = false;
+        } else {
+          row.style.opacity = '0.35';
+          slider.disabled = true;
+          slider.value = 0;
+          const valText = document.getElementById(`val-q${i}`);
+          if (valText) valText.textContent = '0.0° (Kilitli)';
+        }
+      }
+    }
+
+    this.updateRobotState(this.currentQ);
+    this.recalculateTrajectory();
+
+    // Auto-switch to DOF Compare tab so the user immediately sees the explanations and Jacobian differences
+    this.switchTab('dof-compare');
+
+    const banner = document.getElementById('preset-info-banner');
+    if (banner) {
+      banner.textContent = `Robot Modeli Değiştirildi: ${activeDOF}-DOF Konfigürasyonu`;
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 3000);
+    }
   }
 
   applyIKSolution(solIndex) {
@@ -473,6 +546,25 @@ class RobotEducationalApp {
       });
     }
 
+    // Home / Zero Pose Reset Button
+    const resetHomeBtn = document.getElementById('btn-reset-home');
+    if (resetHomeBtn) {
+      resetHomeBtn.addEventListener('click', () => this.resetToHomePose());
+    }
+
+    const resetHomeTimelineBtn = document.getElementById('btn-reset-home-timeline');
+    if (resetHomeTimelineBtn) {
+      resetHomeTimelineBtn.addEventListener('click', () => this.resetToHomePose());
+    }
+
+    // Multi-DOF Selector
+    const dofSelect = document.getElementById('select-dof');
+    if (dofSelect) {
+      dofSelect.addEventListener('change', (e) => {
+        this.setDOF(parseInt(e.target.value, 10));
+      });
+    }
+
     // 3D Visual toggles
     const toggleFrames = document.getElementById('toggle-frames');
     if (toggleFrames) toggleFrames.addEventListener('change', (e) => this.visualizer.toggleFrames(e.target.checked));
@@ -540,21 +632,34 @@ class RobotEducationalApp {
     });
   }
 
-  setupTabNavigation() {
+  switchTab(tabId) {
     const tabButtons = document.querySelectorAll('.edu-tab-btn');
     const tabPanels = document.querySelectorAll('.edu-tab-panel');
 
+    tabButtons.forEach(b => {
+      if (b.getAttribute('data-tab') === tabId) {
+        b.classList.add('active');
+        b.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      } else {
+        b.classList.remove('active');
+      }
+    });
+
+    tabPanels.forEach(p => {
+      if (p.id === `tab-${tabId}`) {
+        p.classList.add('active');
+      } else {
+        p.classList.remove('active');
+      }
+    });
+  }
+
+  setupTabNavigation() {
+    const tabButtons = document.querySelectorAll('.edu-tab-btn');
     tabButtons.forEach(btn => {
       btn.addEventListener('click', () => {
-        tabButtons.forEach(b => b.classList.remove('active'));
-        tabPanels.forEach(p => p.classList.remove('active'));
-
-        btn.classList.add('active');
         const targetTab = btn.getAttribute('data-tab');
-        const targetPanel = document.getElementById(`tab-${targetTab}`);
-        if (targetPanel) {
-          targetPanel.classList.add('active');
-        }
+        this.switchTab(targetTab);
       });
     });
   }
