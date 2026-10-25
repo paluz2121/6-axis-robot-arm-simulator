@@ -110,6 +110,12 @@ class RobotEducationalApp {
       this.applyIKSolution(solIndex);
     });
 
+    // 3.5. Initialize Code Generator (Arduino C++ & MATLAB)
+    if (typeof CodeGenerator !== 'undefined') {
+      this.codeGenerator = new CodeGenerator(this);
+      this.codeGenerator.init();
+    }
+
     // 4. Initial calculations for A and B
     this.syncPosesFromInputs();
     this.solveInitialPoses();
@@ -203,6 +209,11 @@ class RobotEducationalApp {
 
     // Reset simulation time to start
     this.seekToTime(0.0);
+
+    // Update live Arduino & MATLAB code export
+    if (this.codeGenerator) {
+      this.codeGenerator.updateCodeDisplay();
+    }
   }
 
   updateRobotState(q) {
@@ -652,6 +663,10 @@ class RobotEducationalApp {
         p.classList.remove('active');
       }
     });
+
+    if (tabId === 'code-export' && this.codeGenerator) {
+      this.codeGenerator.updateCodeDisplay();
+    }
   }
 
   setupTabNavigation() {

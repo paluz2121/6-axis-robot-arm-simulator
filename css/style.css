@@ -1027,3 +1027,115 @@ body {
   border: 1px solid rgba(100, 116, 139, 0.4);
 }
 
+/* Code Generator & Export Styles */
+.code-export-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.code-tab-toggle-group {
+  display: inline-flex;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.code-tab-toggle-group .btn {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.code-tab-toggle-group .btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.code-tab-toggle-group .btn.active {
+  background: rgba(56, 189, 248, 0.25) !important;
+  color: var(--accent-cyan) !important;
+  border-color: rgba(56, 189, 248, 0.6) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+.code-status-toast {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  text-align: center;
+  transition: opacity 0.3s ease;
+  animation: fadeIn 0.2s ease;
+}
+
+.code-action-buttons {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.code-viewer-container {
+  background: #080c14;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.code-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.code-pre {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: #d1d5db;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+}
+
+.code-pre::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.code-pre::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 3px;
+}
+
+.code-help-box {
+  background: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+

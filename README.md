@@ -83,11 +83,30 @@ Açılır menüden tek tıkla seçilebilecek laboratuvar senaryoları:
 
 ---
 
+### 6. Gerçek Robot Kontrolü (Arduino C/C++) ve MATLAB Simülasyonu
+- **Arduino C/C++ (`arduino/robot_arm_controller/robot_arm_controller.ino`):**
+  Öğrencilerin 3D yazıcı veya alüminyum robot kitiyle yaptıkları gerçek robot projelerini çalıştırmaları için geliştirilmiştir.
+  - İlk açılışta robotu otomatik olarak **0° (HOME)** kalibrasyon merkezine götürür.
+  - Ardından simülatörde veya kodda belirlenen **A Noktası** ve **B Noktası** koordinatlarına sarsıntısız (anti-jerk S-curve) geçişle hareket eder.
+  - Doğrudan Arduino PWM pinlerini (`Servo.h`) veya PCA9685 I2C sürücüsünü destekler.
+  - Mikrodenetleyici üzerinde çalışan gömülü analitik ters kinematik içerir. Seri Port üzerinden anlık `HOME`, `A`, `B`, `GO X Y Z` komutlarını dinler.
+- **MATLAB Simülatörü (`matlab/robot_arm_simulator.m`):**
+  Öğrencilerin akademik tez ve laboratuvar çalışmalarında kullanabilecekleri modüler, hızlı ve 3B animasyonlu MATLAB/Octave betiğidir.
+  - Robotu 0 konumundan öğrencinin belirlediği A ve B noktalarına taşır.
+  - İleri ve ters kinematiği sayısal olarak çözer, 3B kol hareketini, TCP izini ve $q_1 \dots q_6$ eklem açı grafiklerini çizer.
+- **Web Canlı Kod Üretici (Arayüz Sekmesi):**
+  Arayüzdeki **"💻 Kod Üretici"** sekmesinden öğrencinin girdiği güncel A ve B koordinatlarıyla özelleştirilmiş `.ino` ve `.m` kodları tek tıkla panoya kopyalanabilir veya indirilebilir.
+
+---
+
 ## 🛠️ Dosya Yapısı
-- `index.html`: Ana arayüz, 3D görünüm, kontrol panelleri, matematik sekmeleri.
+- `index.html`: Ana arayüz, 3D görünüm, kontrol panelleri, matematik ve kod üretim sekmeleri.
 - `css/style.css`: Modern karanlık cam efekti (glassmorphism), siber endüstriyel tema.
-- `js/robot-kinematics.js`: Kinematik motor (DH, FK, 8 çözümlü analitik IK, Jakoben, Yörünge algoritmaları).
-- `js/robot-3d.js`: Three.js 3D görselleştirici (robot kolu, koordinat eksenleri, hayalet modeller, yörünge izi).
+- `js/robot-kinematics.js`: Kinematik motor (DH, FK, 8 çözümlü analitik IK, Jakoben, Newton-Euler ve Euler-Lagrange dinamiği, kesit mukavemet hesabı).
+- `js/robot-3d.js`: Three.js 3D görselleştirici (ayrılmış 4, 5, 6. bilek eksenleri, fiziksel eksen mafsalları, kamera takibi).
 - `js/charts.js`: Chart.js ile dinamik yörünge grafikleri ve senkronize zaman imleci.
-- `js/math-explainer.js`: KaTeX ile canlı matris ve adım adım formül açıklamaları.
+- `js/math-explainer.js`: KaTeX ile canlı matris, dinamik torklar, mukavemet tablosu ve DOF karşılaştırmaları.
+- `js/code-generator.js`: Arduino C/C++ ve MATLAB kodlarını anlık koordinatlarla üreten motor.
 - `js/app.js`: Arayüz yöneticisi, klavye kısayolları ve simülasyon döngüsü.
+- `arduino/robot_arm_controller/`: Arduino C/C++ gerçek robot kontrolcü yazılımı.
+- `matlab/`: Bağımsız 6-DOF MATLAB kinematik simülatör betiği.

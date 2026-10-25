@@ -343,6 +343,7 @@
           <button class="edu-tab-btn" data-tab="dynamics" title="Newton-Euler & Euler-Lagrange Dinamiği ve Kesit Mukavemet Analizi">⚙️ Dinamik & Mukavemet</button>
           <button class="edu-tab-btn" data-tab="dof-compare" title="3-DOF, 4-DOF, 5-DOF ve 6-DOF Robot Mimarisi Karşılaştırması">🎓 DOF Karşılaştırma</button>
           <button class="edu-tab-btn" data-tab="charts" title="Eklem Konum, Hız ve İvme Yörünge Grafikleri">📈 Grafikler</button>
+          <button class="edu-tab-btn" data-tab="code-export" title="Arduino C/C++ ve MATLAB Kodlarını Canlı Üret ve İndir">💻 Kod Üretici</button>
           <button class="edu-tab-btn" data-tab="notes" title="Robotik Kinematiği Üniversite Ders Notları">📖 Ders Notları</button>
         </div>
 
@@ -636,6 +637,50 @@
             </div>
           </div>
 
+          <!-- TAB: Kod Üretici (Arduino C++ & MATLAB) -->
+          <div id="tab-code-export" class="edu-tab-panel">
+            <section class="glass-card">
+              <div class="card-title-bar">
+                <span class="card-title cyan">💻 Gerçek Robot Kontrolü & Kod Dışa Aktarımı</span>
+                <span class="badge badge-success">Canlı Simülatör Senkronu</span>
+              </div>
+              <p class="text-muted text-xs" style="margin-bottom: 10px;">
+                Öğrencilerinizin gerçek robot projelerini çalıştırabilmeleri için simülatördeki <strong>HOME (0°) &rarr; A Noktası &rarr; B Noktası</strong> yörüngesini otomatik olarak derlenebilir <strong>Arduino C/C++ (.ino)</strong> veya <strong>MATLAB (.m)</strong> koduna dönüştürür.
+              </p>
+              
+              <div class="code-export-toolbar">
+                <div class="code-tab-toggle-group">
+                  <button type="button" id="code-toggle-arduino" onclick="window.codeGenSwitchType('arduino')" class="btn btn-sm btn-secondary active">🤖 Arduino C/C++ (.ino)</button>
+                  <button type="button" id="code-toggle-matlab" onclick="window.codeGenSwitchType('matlab')" class="btn btn-sm btn-secondary">📊 MATLAB (.m)</button>
+                </div>
+                
+                <div class="code-action-buttons">
+                  <button type="button" id="btn-refresh-code" onclick="window.codeGenRefresh()" class="btn btn-sm btn-secondary" title="Simülatördeki güncel A ve B koordinatlarıyla kodu yenile">⚡ Koordinatları Yenile</button>
+                  <button type="button" id="btn-copy-code" onclick="window.codeGenCopy()" class="btn btn-sm btn-primary">📋 Kodu Kopyala</button>
+                  <button type="button" id="btn-download-code" onclick="window.codeGenDownload()" class="btn btn-sm btn-success">💾 Dosyayı İndir</button>
+                </div>
+              </div>
+
+              <div id="code-status-toast" class="code-status-toast" style="display: none;"></div>
+
+              <div class="code-viewer-container">
+                <div class="code-viewer-header">
+                  <span id="code-filename-label" class="font-mono text-cyan text-xs">robot_arm_controller.ino</span>
+                  <span class="badge badge-secondary text-xs">Derlenmeye ve Çalıştırılmaya Hazır</span>
+                </div>
+                <pre id="code-display-block" class="code-pre"></pre>
+              </div>
+
+              <div class="code-help-box">
+                <h4 style="color: var(--accent-amber); font-size: 11.5px; margin-bottom: 4px;">🚀 Öğrenciler İçin Nasıl Kullanılır?</h4>
+                <ol style="font-size: 11px; color: var(--text-muted); padding-left: 18px; line-height: 1.5; margin: 0;">
+                  <li><strong>Arduino İçin:</strong> "Dosyayı İndir" butonuna basarak <code>robot_arm_controller.ino</code> dosyasını indirin. Arduino IDE ile açıp servo pinlerinizi bağlayarak kartınıza yükleyin. Robotunuz önce 0° (HOME) pozisyonuna, ardından belirlediğiniz A ve B koordinatlarına pürüzsüzce hareket edecektir.</li>
+                  <li><strong>MATLAB İçin:</strong> MATLAB seçeneğini işaretleyip <code>robot_arm_simulator.m</code> dosyasını indirin. MATLAB'da F5 ile çalıştırdığınızda robot kolunun 3B animasyonunu ve eklem açı grafiklerini doğrudan görebilirsiniz.</li>
+                </ol>
+              </div>
+            </section>
+          </div>
+
         </div>
 
       </aside>
@@ -645,10 +690,11 @@
   </div>
 
   <!-- Application Logic Scripts -->
-  <script src="js/robot-kinematics.js"></script>
-  <script src="js/robot-3d.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/math-explainer.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/robot-kinematics.js?v=1.2"></script>
+  <script src="js/robot-3d.js?v=1.2"></script>
+  <script src="js/charts.js?v=1.2"></script>
+  <script src="js/math-explainer.js?v=1.2"></script>
+  <script src="js/code-generator.js?v=1.2"></script>
+  <script src="js/app.js?v=1.2"></script>
 </body>
 </html>
